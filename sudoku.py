@@ -1,18 +1,8 @@
 import time
 
-board = [[5, 3, 0, 0, 7, 0, 0, 0, 0],
-         [6, 0, 0, 1, 9, 5, 0, 0, 0],
-         [0, 9, 8, 0, 0, 0, 0, 6, 0],
-         [8, 0, 0, 0, 6, 0, 0, 0, 3],
-         [4, 0, 0, 8, 0, 3, 0, 0, 1],
-         [7, 0, 0, 0, 2, 0, 0, 0, 6],
-         [0, 6, 0, 0, 0, 0, 2, 8, 0],
-         [0, 0, 0, 4, 1, 9, 0, 0, 5],
-         [0, 0, 0, 0, 8, 0, 0, 7, 9]]
-
 
 def print_board(title, board):
-    """ Print the board state with a heading title """
+    """ Imprimir el estado del tablero con un título """
     print('\r\n', ' '*(16-len(title)//2), title)
     for r in range(len(board)):
         if (r == 0): print('╔', '═'*3, '╤', '═'*3, '╤', '═'*3, '╦', '═'*3, '╤', '═'*3, '╤',
@@ -62,18 +52,33 @@ def successors(sol):
 
 
 def solve(board):
+    """ Call to recursive backtracking solver """
+    return bk_solver(board.copy())
+
+def bk_solver(board):
     """ Use backtracking to solve the puzzle in the board """
-    if total_solution(board): return True
+    if total_solution(board): 
+        return board
     for s in successors(board): 
-        board = solve(s)
-        if board != False: return True
-    return False
+        if total_solution(bk_solver(s)):
+            return s
+    return board
 
 
-print_board('Problem', board)
-start = time.time()
-solve(board)
-end = time.time()
-print_board('Solution', board)
-print('Time to solve:', end-start, "\r\n")
+def test_solve():
+    board = [[5, 3, 0, 0, 7, 0, 0, 0, 0],
+             [6, 0, 0, 1, 9, 5, 0, 0, 0],
+             [0, 9, 8, 0, 0, 0, 0, 6, 0],
+             [8, 0, 0, 0, 6, 0, 0, 0, 3],
+             [4, 0, 0, 8, 0, 3, 0, 0, 1],
+             [7, 0, 0, 0, 2, 0, 0, 0, 6],
+             [0, 6, 0, 0, 0, 0, 2, 8, 0],
+             [0, 0, 0, 4, 1, 9, 0, 0, 5],
+             [0, 0, 0, 0, 8, 0, 0, 7, 9]]
+    print_board('Problem', board)
+    start = time.time()
+    solve(board)
+    end = time.time()
+    print_board('Solution', board)
+    print('Time to solve:', end-start, "\r\n")
 

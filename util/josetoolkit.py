@@ -1,0 +1,331 @@
+# Importamos las librerías necesarias
+from sudoku import print_board, solve
+import os
+from time import sleep
+from matplotlib import pyplot as plt
+
+import cv2
+import numpy as np
+import webbrowser
+from imutils.perspective import four_point_transform
+from imutils import grab_contours
+from matplotlib.pyplot import contour
+from regex import T
+from skimage.segmentation import clear_border
+import tkinter
+from tkinter import messagebox
+
+try:
+    import pytesseract as ocr
+except ImportError:
+    window = tkinter.Tk()
+    window.wm_withdraw()
+    sel_exit = False
+    res = messagebox.askquestion(
+        'Módulo no instalado', '¿Desea instalar la librería pytesseract? ' +
+        '\n\nAun asi es necesario tener instalado Tesseract, ' +
+        'puede descargarlo aqui: \n\n' +
+        'https://tesseract-ocr.github.io/tessdoc/Installation.html')
+    if res == 'yes':
+        os.system('pip install pytesseract')
+        import pytesseract as ocr
+        webbrowser.open(
+            'https://tesseract-ocr.github.io/tessdoc/Installation.html')
+    else:
+        res = messagebox.askquestion(
+            '¿Continuar?', '¿Desea continuar sin el modulo de OCR?')
+        if res == 'no':
+            sel_exit = True
+    window.destroy()
+    if sel_exit:
+        exit(0)
+
+
+# #############################################################################
+# Constantes
+# #############################################################################
+OP_BORDERS_CANNY = 0                 # Bordes mediante el filtro de Canny
+OP_BORDERS_SOBEL = 1                 # Bordes mediante el filtro de Sobel
+OP_BORDERS_THRESHOLD = 2             # Bordes mediante umbralización básica
+OP_BORDERS_ADAPTATIVE_THRESHOLD = 3  # Bordes mediante umbralización adaptativa
+
+SOBEL_X = 0
+SOBEL_Y = 1
+
+WAIT_KEY = False
+
+FIXED_WIDTH = 2560
+
+# DEF_SUDOKU_IMG = ".\img\opencv_sudoku_puzzle_outline.png"
+# DEF_SUDOKU_IMG = ".\img\sudoku_01.jpg"
+# DEF_SUDOKU_IMG = ".\img\sudoku_02.jpg"
+# DEF_SUDOKU_IMG = ".\img\sudoku_03.jpg"
+# DEF_SUDOKU_IMG = ".\img\sudoku_04.jpg"
+# DEF_SUDOKU_IMG = ".\img\sudoku_05.jpg"
+# DEF_SUDOKU_IMG = ".\img\sudoku_06.jpg" # nok
+# DEF_SUDOKU_IMG = ".\img\sudoku_07.jpg" # nok
+# DEF_SUDOKU_IMG = ".\img\sudoku_08.jpg" 
+# DEF_SUDOKU_IMG = ".\img\sudoku_09.jpg"
+# DEF_SUDOKU_IMG = ".\img\sudoku_10.jpg" # nok
+# DEF_SUDOKU_IMG = ".\img\sudoku_11.jpg"
+DEF_SUDOKU_IMG = ".\img\sudoku_12.jpg"
+
+
+# #############################################################################
+# Inicialización opciones
+# #############################################################################
+op_borders = OP_BORDERS_CANNY
+WAIT_DELAY = 100
+
+# #############################################################################
+# Excepciones
+# #############################################################################
+
+
+class SudokuError(Exception):
+    """Clase de excepción de la que derivarán todas las excepciones. """
+    pass
+
+
+class BoardError(SudokuError):
+    """Excepcion que se lanza cuando no se encuentra el tablero. """
+    pass
+
+
+class CellsError(SudokuError):
+    """Excepcion que se lanza cuando no se encuentran las celdas. """
+    pass
+
+
+# #############################################################################
+# Métodos funcionales
+# #############################################################################
+def show_window(name, image, size=640, force_square=False, wait=-1):
+    """ Muestra una ventana con la imagen
+    @param name: Nombre de la ventana
+    @param image: Imagen a mostrar
+    @param size: Tamaño de la ventana (Ancho fijo)
+    @param force_square: Si es True, asegura que la imagen sea cuadrada
+    @param wait: Tiempo de espera antes de cerrar la ventana
+    @return: Devuelve la imagen de entrada sin alterarla. Esto permite usar una 
+    funcion de procesamiento directamente como parametro `image` de entrada y 
+    guardar su resultado por la salida.
+    """
+    # Escalar imagen a tamaño fijo
+    scale_factor = size / image.shape[1]
+    # Calcular ancho y alto de la imagen
+    width = int(image.shape[1] * scale_factor)
+    height = width if force_square else int(image.shape[0] * scale_factor)
+    dim = (width, height)
+    # resize image
+    resized = cv2.resize(image.copy(), dim, interpolation=cv2.INTER_AREA)
+    cv2.imshow(name, resized)
+    cv2.namedWindow(name, cv2.INTER_LINEAR)
+    if wait != -1:
+        cv2.waitKey(int(wait))
+    return image
+
+
+# #############################################################################
+def resize_image(image):
+    # Para reducir una imagen, generalmente se verá mejor con la interpolación
+    # INTER_AREA, mientras que para agrandar una imagen, generalmente se verá
+    # mejor con INTER_CUBIC (lento) o INTER_LINEAR (más rápido peor calidad).
+    # Escalar imagen a ancho fijo
+    scale_factor = FIXED_WIDTH / image.shape[1]
+    # Calcular ancho y alto de la imagen
+    width = int(image.shape[1] * scale_factor)
+    height = int(image.shape[0] * scale_factor)
+    dim = (width, height)
+    interpolation = cv2.INTER_CUBIC if scale_factor > 1 else cv2.INTER_AREA
+    # resize image
+    return cv2.resize(image, dim, interpolation=interpolation)
+
+
+def show_image(path):
+    img_original = show_window(
+        "Sudoku",
+        cv2.imread(path, cv2.IMREAD_UNCHANGED)
+    )
+    img_height, img_width = img_original.shape[:2]
+    print("Dimensiones de la imagen: {}x{}".format(img_width, img_height))
+    return img_original
+
+
+def std_resize(image):
+    img_resized = resize_image(image)
+    img_height, img_width = img_resized.shape[:2]
+    min_dim = min(img_height, img_width)
+    print("Dimensiones de la imagen redimensionada: {}x{}".format(
+        img_width, img_height))
+    return img_resized, img_height, img_width, min_dim
+
+
+def canny_filter(img, min_thr=30, max_thr=50):
+    """ Aplica el filtro de Canny en la imagen y la devuelve
+    normalizada.
+    @param img: Imagen a filtrar
+    """
+    # Filtro de Canny. Los dos números son: nivel inferior, nivel superior
+    canny = cv2.Canny(img, min_thr, max_thr)
+    return cv2.normalize(canny, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+
+def filtro_sobel(image, type=SOBEL_X):
+    if type == SOBEL_X:
+        kernel = np.array([[1, 0, -1],
+                           [2, 0, -2],
+                           [1, 0, -1]])
+    elif type == SOBEL_Y:
+        kernel = np.array([[-1, -2, -1],
+                           [0,  0,  0],
+                           [1,  2,  1]])
+    # Aplicamos el filtro de Sobel
+    sobel = cv2.filter2D(image, -1, kernel)
+    return sobel
+
+
+def gaussian_filter(image, ksize=5):
+    """ Aplica el filtro de Gaussiano en la imagen.
+    @param image: Imagen a filtrar
+    @param ksize: Tamaño del kernel    
+    \nSe asegura que el tamaño del kernel sea impar.
+    """
+    size = (ksize//2)*2+1
+    return cv2.GaussianBlur(image, (size, size), 0)
+
+
+def umbralizacion_adaptativa(image, type=cv2.THRESH_BINARY, vecinos=11, c_substract=2):
+    """ Aplica el filtro de umbralización adaptativa en la imagen, de modo que solo tienen en cuenta los pixels vecinos.
+    @param image: Imagen a umbralizar
+    @param vecinos: Número de vecinos a considerar
+    @param c_substract: Constante restada de la media o de la media ponderada 
+    \nSe asegura que el tamaño del kernel sea impar.
+    """
+    # · cv2.ADAPTIVE_THRESH_GAUSSIAN_C:
+    #   El valor del umbral es una suma ponderada del bloque de vecinos
+    #   (vecinos x vecinos) menos C.
+    # · cv2.ADAPTIVE_THRESH_MEAN_C:
+    #   El valor del umbral es la media de los vecions del bloque
+    #   (vecinos x vecinos) menos C
+    size = (vecinos//2)*2+1
+    umbral = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                   type, size, c_substract)
+    return clear_border(umbral)
+
+
+def umbralizacion(image, thr=50, type=cv2.THRESH_BINARY_INV):
+    # Aplicamos un umbral
+    umbral = cv2.threshold(image, thr, 255, type)[1]
+    return clear_border(umbral)
+
+
+def dilate_image(image):
+    kernel = np.ones((3, 3), np.uint8)
+    dilated = cv2.dilate(image, kernel, iterations=2)
+    return dilated
+
+
+# TODO: BORAR no se usa
+def find_contours(image):
+    # Buscamos contorno en la imagen
+    # contornos = cv2.findContours(image.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # contornos = sorted(contornos, key=cv2.contourArea, reverse=True)
+    # Recorremos todos los contornos encontrados
+    contornos = cv2.findContours(
+        image.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contornos = grab_contours(contornos)
+    # Eliminamos los contornos más pequeños
+    # for c in cont:
+    #     # if cv2.contourArea(c) < 500:
+    #     #     continue
+
+    #     # Obtenemos el bounds del contorno, el rectángulo mayor que engloba al contorno
+    #     (x, y, w, h) = cv2.boundingRect(c)
+    #     # Dibujamos el rectángulo del bounds
+    #     cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    return contornos
+
+
+def draw_board(image, rectangle, board):
+    """ Dibuja en la imagen el rectangulo que contiene el tablero y el tablero
+    @param image: Imagen sobre la que dibujar 
+    @param rectangle: Rectangulo que contiene el tablero
+    @param board: Tablero a dibujar
+    \n@return: Devuelve copia de la imagen con el tablero dibujado
+    """
+    _img = image.copy()
+    # Dibujamos el rectángulo del bounds
+    (x, y, w, h) = rectangle
+    cv2.rectangle(_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    # Dibujamos el tablero
+    cv2.drawContours(_img, [board], -1, (0, 0, 255), 2)
+    return _img
+
+
+def get_tablero(img_borders):
+    # Buscamos contorno en la imagen
+    contornos, hierarchy = cv2.findContours(
+        img_borders, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Ordenamos para quedarnos con el mayor
+    contornos = sorted(contornos, key=cv2.contourArea, reverse=True)
+    contorno_mayor = contornos[0]
+
+    # Obtenemos el bounds del contorno, el rectángulo mayor que engloba al contorno
+    bounds = cv2.boundingRect(contorno_mayor)
+
+    # Obtenemos el poligono del contorno ajustado. Si esta inclinado nos permitirá encuadrarlo
+    perimetro = cv2.arcLength(contorno_mayor, True)
+    sudoku_box = cv2.approxPolyDP(contorno_mayor, 0.02 * perimetro, True)
+    if len(sudoku_box) != 4:
+        raise BoardError("El tablero encontrado no es un cuadrado")
+
+    return bounds, sudoku_box
+
+
+def transform_board(image, poligon_board):
+    # Transformacion para ajustar a ventana
+    return four_point_transform(image, poligon_board.reshape(4, 2))
+
+
+def tesseract_error(e):
+    print(e)
+    print("Error al procesar la celda")
+    window = tkinter.Tk()
+    window.wm_withdraw()
+    messagebox.showerror('Tesseract no encontrado', str(e) +
+                         '\n\nPuede descargarlo aqui:\n\n' +
+                         'https://tesseract-ocr.github.io/tessdoc/Installation.html')
+    webbrowser.open(
+        'https://tesseract-ocr.github.io/tessdoc/Installation.html')
+    window.destroy()
+    exit(0)
+
+
+def show_hist(image):
+    hist = cv2.calcHist([image], [0], None, [256], [0, 256])
+    max_value = np.max(hist)  # Valor máximo del histograma
+    max_i = np.argmax(hist)  # Índice del valor máximo
+    pixels = image.shape[0]*image.shape[1]
+    # show_window("Histograma", hist, size=hist.shape[1])
+    plt.plot(hist/pixels)
+    plt.show()
+    return hist, max_value, max_i
+
+
+def process(name, image, thr):
+    # Aplicar filtro gausiano para eliminar ruido
+    image = show_window(
+        name,
+        gaussian_filter(image, 7))
+
+    # Umbralización
+    pixels = image.shape[0]*image.shape[1]
+    brightness = int(np.sum(image)/pixels)
+    # thr = brightness - (brightness*0.2)
+    image = show_window(
+        name,
+        umbralizacion(image, thr=thr, type=cv2.THRESH_BINARY_INV))
+
+    return image
