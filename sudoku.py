@@ -1,10 +1,13 @@
 import os
+from pydoc import doc
 import tkinter
 import webbrowser
 from argparse import ArgumentParser as AP
 from tkinter import messagebox
+from xml.dom import HierarchyRequestErr
 
 import cv2
+from cv2 import drawContours
 import numpy as np
 from imutils.perspective import four_point_transform
 from util.sudoku_solver import print_board, solve
@@ -236,52 +239,39 @@ img_process = jtk.show_window(
     jtk.gaussian_filter(img_process, 25),
     wait=DELAY)
 
-# Umbralizacion adaptativa
-print("Umbralizacion adaptativa")
+# # Umbralizacion adaptativa
+# print("Umbralizacion adaptativa")
+# img_process = jtk.show_window(
+#     "PROCESS",
+#     jtk.umbralizacion_adaptativa(img_process, cv2.THRESH_BINARY, 50, 6),
+#     wait=DELAY)
+
+# Umbralización segun brillo medio de la imagen
+print("Umbralización")
+pixels = img_height*img_width
+brightness = int(np.sum(img_process)/pixels)
+thr = brightness * 0.6
 img_process = jtk.show_window(
     "PROCESS",
-    jtk.umbralizacion_adaptativa(img_process, cv2.THRESH_BINARY, 50, 6),
+    jtk.umbralizacion(img_process, thr=thr, type=cv2.THRESH_BINARY_INV),
     wait=DELAY)
 
+
 # #############################################################################
-# Deteccion de lineas
+# Dubujar lineas teoricas
 # #############################################################################
 
-# Detectar lineas horizontales y verticales
-lines = cv2.HoughLines(image=img_process, rho=1, theta=np.pi/2, threshold=int(min_dim*0.3),
-                       lines=None, srn=0, stn=0, min_theta=0, max_theta=np.pi)
-
-# Crear matriz de ceros para mascara de celdas
-print("Generar base para mascara de celdas")
-m = 15
+m = 5
 w = img_width//9
 h = img_height//9
-mask = jtk.show_window(
-    "Mask",
-    np.zeros((img_height, img_width), np.uint8))
-mask[:m, :] = 255
-mask[-m:, :] = 255
-mask[:, :m] = 255
-mask[:, -m:] = 255
+img_process[:m, :] = 255
+img_process[-m:, :] = 255
+img_process[:, :m] = 255
+img_process[:, -m:] = 255
 for i in range(10):
-    mask[i*h-m:i*h+m:, :] = 255
-    mask[:, i*w-m:i*w+m:] = 255
-jtk.show_window("Mask", mask, wait=DELAY)
-
-# Dibujar lineas horizontales y verticales
-for line in lines:
-    rho, theta = line[0]
-    v = np.cos(theta), np.sin(theta)
-    p0 = (int(v[0] * rho), int(v[1] * rho))
-    p1 = (int(p0[0]), int(p0[1]))
-    p2 = (int(p0[0] + img_width * v[1]), int(p0[1] + img_height * v[0]))
-    cv2.line(mask, p1, p2, (255), 24)
-jtk.show_window("Mask", mask, wait=DELAY)
-
-
-# #############################################################################
-# Deteccion de celdas
-# #############################################################################
+    img_process[i*h-m:i*h+m:, :] = 255
+    img_process[:, i*w-m:i*w+m:] = 255
+mask = jtk.show_window("Mask", img_process, wait=DELAY)
 
 # Contornos
 # There are four types in retrieval mode in OpenCV.
@@ -290,17 +280,62 @@ jtk.show_window("Mask", mask, wait=DELAY)
 # - cv2.RETR_COMP → Retrieves all in a 2-level hierarchy
 # - cv2.RETR_TREE → Retrieves all in the full hierarchy
 # Hierarchy is stored in the following format[next, previous, First child, parent].
-contornos = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+# Buscar contornos
+contornos, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+hierarchy = hierarchy[0]
+drawContours(img_inframe, contornos, -1, (0, 255, 0), 2)
+jtk.show_window("PROCESS", img_inframe, wait=DELAY)
 
 # Filtrar por area
 max_area = img_width * img_height / 81
 min_area = max_area / 2
-cells = []
-for c in contornos[0]:
+
+
+# #############################################################################
+# Buscar celdas
+# #############################################################################
+
+# Pintar contornos de primer nivel (Nivel Raiz = 0)
+next, previous, child, parent = 0, 1, 2, 3
+celda, numero = [], []
+root, i = contornos[0], hierarchy[0, child]
+drawContours(img_inframe, contornos, 0, (0), -1)
+drawContours(mask, contornos, 0, (0), -1)
+jtk.show_window("Mask", mask)
+jtk.show_window("PROCESS", img_inframe, wait=1 if DELAY==0 else DELAY//10)
+while i != -1:
+    c = contornos[i]
     if min_area < cv2.contourArea(c) and cv2.contourArea(c) < max_area:
-        # Obtenemos el rectángulo que engloba al contorno
-        (x, y, w, h) = cv2.boundingRect(c)
-        cells.append((x, y, w, h))
+        celda.append(i)
+        drawContours(img_inframe, contornos, i, (255, 0, 0), -1)
+        drawContours(mask, contornos, i, (0), -1)
+        jtk.show_window("Mask", mask)
+        jtk.show_window("PROCESS", img_inframe, wait=1 if DELAY==0 else DELAY//10)
+        if hierarchy[i, child] != -1:
+            h = hierarchy[i, child]
+            while True:
+                numero.append(h)
+                drawContours(img_inframe, contornos, h, (255,255,255), -1)
+                drawContours(mask, contornos, h, (255), -1)
+                jtk.show_window("Mask", mask)
+                jtk.show_window("PROCESS", img_inframe, wait=1 if DELAY==0 else DELAY//10)
+                if hierarchy[h, child] != -1:
+                    j = hierarchy[h, child]
+                    while True:
+                        numero.append(j)
+                        drawContours(img_inframe, contornos, j, (255, 0, 0), -1)
+                        drawContours(mask, contornos, j, (0), -1)
+                        jtk.show_window("Mask", mask)
+                        jtk.show_window("PROCESS", img_inframe, wait=1 if DELAY==0 else DELAY//10)
+                        if hierarchy[j, next] == -1:
+                            break
+                        j = hierarchy[j, next]
+                if hierarchy[h, next] == -1:
+                    break
+                h = hierarchy[h, next]
+    i = hierarchy[i, next]
+
+cells = [cv2.boundingRect(contornos[i]) for i in celda]
 
 # Comprobacion del numero de celdas encontradas
 if len(cells) != 81:
@@ -327,35 +362,10 @@ for c in cells:
     x, y, w, h = c
     # Obtenemos la imagen de la celda
     m = int(w*0.1)  # margen para evitar bordes
+    m = 0  # margen para evitar bordes
     points = np.array([[m+x, m+y], [x-m+w, m+y],
                       [x-m+w, y-m+h], [m+x, y-m+h]])
-    cell = four_point_transform(img_inframe, points)
-    jtk.show_window(window_cell, cell, size=200)
-    cell = cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY)
-
-    # Aplicar filtro gausiano para eliminar ruido
-    cell = jtk.show_window(
-        window_cell,
-        jtk.gaussian_filter(cell, 25),
-        size=200)
-
-    # Umbralizacion adaptativa
-    m = min(cell.shape)
-    cell = jtk.show_window(
-        window_cell,
-        jtk.umbralizacion_adaptativa(
-            cell, cv2.THRESH_BINARY, m//3, int(m*0.1)),
-        size=200)
-
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    cell = cv2.dilate(cell, kernel)
-
-    # Aplicar filtro gausiano para eliminar ruido
-    cell = jtk.show_window(
-        window_cell,
-        jtk.gaussian_filter(cell, 3),
-        size=200)
-
+    cell = four_point_transform(mask, points)
     jtk.show_window(window_cell, cell, size=200, wait=0 if DELAY==0 else DELAY//10)
     try:
         """ TESSERACT
@@ -398,7 +408,7 @@ for c in cells:
     print(text[0] if text != '' else '0', end=' ')
     text = text[0] if text in matches else '0'
     board_data.append(text)
-    jtk.show_window(window_cell, cell, size=200, wait=0 if DELAY==0 else DELAY//10)
+    jtk.show_window(window_cell, cell, size=200, wait=1 if DELAY==0 else DELAY//10)
 cv2.destroyWindow(window_cell)
 board_data = np.array(board_data).reshape(9, 9).astype(int)
 print()
@@ -431,11 +441,9 @@ transform_matrix = cv2.getPerspectiveTransform(
 for r in range(9):
     for c in range(9):
         if board_data[r, c] == 0:
-            jtk.draw_number(
-                img_inframe, cells[r*9+c], solution[r][c], (14, 168, 12))
+            jtk.draw_number(img_inframe, cells[r*9+c], solution[r][c], (14, 168, 12))
             jtk.draw_number(mask, cells[r*9+c], solution[r][c], (255))
-            m_over = cv2.warpPerspective(
-                mask, transform_matrix, (img_width, img_height))
+            m_over = cv2.warpPerspective(mask, transform_matrix, (img_width, img_height))
             iChannels = cv2.split(img_resized)
             iChannels[0][m_over == 255] = 14
             iChannels[1][m_over == 255] = 168
@@ -462,6 +470,6 @@ cv2.putText(
     color=(0, 0, 255),
     thickness=5)
 jtk.show_window("Sudoku", img_solution, wait=0)
-# cv2.waitKey(0)
+
 cv2.destroyAllWindows()
 exit(0)

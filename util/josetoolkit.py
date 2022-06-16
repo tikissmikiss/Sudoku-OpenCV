@@ -27,6 +27,7 @@ FIXED_WIDTH = 2560  # Ancho fijo de la imagen a escalar
 # Imagen de entrada
 DEF_SUDOKU_IMG = ".\img\sudoku_01.png"
 
+
 # Ruta de salida
 SUDOKU_OUT = ".\sudoku_out.png"
 
@@ -34,7 +35,7 @@ SUDOKU_OUT = ".\sudoku_out.png"
 # Inicialización opciones
 # #############################################################################
 # op_borders = OP_BORDERS_CANNY
-WAIT_DELAY = 1000
+WAIT_DELAY = 10
 
 # #############################################################################
 # Excepciones
