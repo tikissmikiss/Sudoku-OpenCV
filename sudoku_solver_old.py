@@ -15,7 +15,7 @@ from matplotlib.pyplot import contour
 from skimage.segmentation import clear_border
 
 import util.josetoolkit as jtk
-from sudoku import print_board, solve
+from util.sudoku_solver import print_board, solve
 
 try:
     import pytesseract as ocr

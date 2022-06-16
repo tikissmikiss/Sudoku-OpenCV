@@ -16,15 +16,7 @@
             "name": "Python: Sudoku OpenCV",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/sudoku_solver.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Pruebas OpenCV",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/pruebas.py",
+            "program": "${workspaceFolder}/sudoku.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },
