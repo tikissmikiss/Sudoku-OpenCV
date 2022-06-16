@@ -10,7 +10,7 @@ from imutils.perspective import four_point_transform
 from util.sudoku_solver import print_board, solve
 
 import util.josetoolkit as jtk
-from util.josetoolkit import DEF_SUDOKU_IMG, SUDOKU_OUT, WAIT_DELAY
+from util.josetoolkit import DEF_SUDOKU_IMG, SUDOKU_OUT, WAIT_DELAY, intersect
 
 try:
     import pytesseract as ocr
@@ -38,7 +38,9 @@ except ImportError:
         exit(0)
 
 
-# Defininos el menú del programa.
+# #############################################################################
+# Menú del programa.
+# #############################################################################
 ap = AP()
 ap.add_argument('-i', '--image', default=DEF_SUDOKU_IMG, required=False,
                 help='Ruta de la imagen de entrada. Si se omite se usa "'+str(DEF_SUDOKU_IMG)+'".')
@@ -94,7 +96,7 @@ img_denoise = jtk.show_window(
 print("Umbralización")
 pixels = img_height*img_width
 brightness = int(np.sum(img_denoise)/pixels)
-thr = brightness - (brightness*0.2)
+thr = brightness * 0.8
 img_denoise = jtk.show_window(
     "PROCESS",
     jtk.umbralizacion(img_denoise, thr=thr, type=cv2.THRESH_BINARY_INV),
@@ -171,7 +173,7 @@ contornos, h = cv2.findContours(
     cv2.CHAIN_APPROX_SIMPLE)
 contorno = max(contornos, key=cv2.contourArea)
 perimetro = cv2.arcLength(contorno, True)
-poligon = cv2.approxPolyDP(contorno, 0.1 * perimetro, True)
+poligon = cv2.approxPolyDP(contorno, 0.1 * perimetro, closed=True)
 
 
 # #############################################################################
@@ -183,7 +185,7 @@ points = []
 for i in range(0, len(poligon)):
     x, y = poligon[i][0]
     points.append((x, y))
-    cv2.circle(img_color, (x, y), 20, (0, 0, 255), -1)
+    cv2.circle(img_color, (x, y), 20, (0, 0, 255), 10)
 jtk.show_window("PROCESS", img_color)
 # Ordenar los puntos
 points = jtk.ordenar_puntos(points)
@@ -194,7 +196,8 @@ for p in points:
     i += 1
     jtk.write_coords([mask, img_color], "P{}".format(i),
                      p, [(128), (255, 0, 0)])
-x, y = max(np.array(points)[:, 0])//2, max(np.array(points)[:, 1])//2
+x, y = intersect([points[0], points[3]], [points[1], points[2]])
+cv2.circle(img_color, (x, y), 20, (0, 0, 255), -1)
 jtk.write_coords([mask, img_color], "Center", (x, y), [(128), (255, 0, 0)])
 jtk.show_window("Mask", mask)
 jtk.show_window("PROCESS", img_color, wait=DELAY)
@@ -312,7 +315,7 @@ for i in range(9):
 for c in cells:
     (x, y, w, h) = c
     cv2.rectangle(img_inframe, (x, y), (x + w, y + h), (0, 0, 255), 3)
-jtk.show_window("PROCESS", img_inframe, wait=DELAY//10)
+jtk.show_window("PROCESS", img_inframe, wait=0 if DELAY==0 else DELAY//10)
 
 # ###############################################################################
 # Leer el contenido de las celdas
@@ -353,7 +356,7 @@ for c in cells:
         jtk.gaussian_filter(cell, 3),
         size=200)
 
-    jtk.show_window(window_cell, cell, size=200, wait=DELAY//10)
+    jtk.show_window(window_cell, cell, size=200, wait=0 if DELAY==0 else DELAY//10)
     try:
         """ TESSERACT
         OCR Engine modes (--oem):
@@ -395,7 +398,7 @@ for c in cells:
     print(text[0] if text != '' else '0', end=' ')
     text = text[0] if text in matches else '0'
     board_data.append(text)
-    jtk.show_window(window_cell, cell, size=200, wait=DELAY//10)
+    jtk.show_window(window_cell, cell, size=200, wait=0 if DELAY==0 else DELAY//10)
 cv2.destroyWindow(window_cell)
 board_data = np.array(board_data).reshape(9, 9).astype(int)
 print()
@@ -440,7 +443,7 @@ for r in range(9):
             img_solution = cv2.merge(iChannels)
             jtk.show_window("PROCESS", img_inframe)
             jtk.show_window("Mask", m_over)
-            jtk.show_window("Sudoku", img_solution, wait=DELAY//10)
+            jtk.show_window("Sudoku", img_solution, wait=0 if DELAY==0 else DELAY//10)
 
 cv2.imwrite(IMG_OUT, img_solution)
 cv2.waitKey(3000)

@@ -34,7 +34,7 @@ SUDOKU_OUT = ".\sudoku_out.png"
 # Inicialización opciones
 # #############################################################################
 # op_borders = OP_BORDERS_CANNY
-WAIT_DELAY = 10
+WAIT_DELAY = 1000
 
 # #############################################################################
 # Excepciones
@@ -300,3 +300,24 @@ def draw_number(image, cell, number=8, color=(0, 0, 0)):
     position = (x+int((wm+w/2-wc/2)), y+int((hm+h/2+hc/2)))
     line = s+1
     cv2.putText(image, str(number), position, font, s, color, line)
+
+
+def intersect(a, b):
+    """
+    Calcula la intersección de dos rectas
+    @param a: Recta 1 (2 puntos (x, y))
+    @param b: Recta 2 (2 puntos (x, y))
+    @return: Coordenadas de la intersección
+    """
+    x1, y1 = a[0]
+    x2, y2 = a[1]
+    x3, y3 = b[0]
+    x4, y4 = b[1]
+    denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
+    if denom == 0:
+        return None
+    ma = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom
+    mb = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom
+    x = x1 + ma * (x2 - x1)
+    y = y1 + ma * (y2 - y1)
+    return (int(x), int(y))
