@@ -4,5 +4,8 @@
     ],
     "cSpell.enableFiletypes": [
         "!python"
-    ]
+    ],
+    "files.associations": {
+        "*.yaml": "home-assistant"
+    }
 }
