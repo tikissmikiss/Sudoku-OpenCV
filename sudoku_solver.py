@@ -6,12 +6,12 @@ import os
 import tkinter
 import webbrowser
 from tkinter import messagebox
+from argparse import ArgumentParser as AP
 
 import cv2
 import numpy as np
 from imutils.perspective import four_point_transform
 from matplotlib.pyplot import contour
-from regex import T
 from skimage.segmentation import clear_border
 
 import util.josetoolkit as jtk
@@ -43,13 +43,18 @@ except ImportError:
         exit(0)
 
 
+# Defininos el menú del programa.
+ap = AP()
+ap.add_argument('-i', '--image', default=jtk.DEF_SUDOKU_IMG, required=False,
+                help='Ruta a la imagen de entrada.')
+args = vars(ap.parse_args())
+
 # #############################################################################
-# Leer imagen
+# Leer y mostrar imagen
 # #############################################################################
-img_original = cv2.imread(".\img\sudoku_01.jpg", cv2.IMREAD_UNCHANGED)
-img_original = cv2.imread(".\img\sudoku_05.jpg", cv2.IMREAD_UNCHANGED)
-img_original = cv2.imread(".\img\opencv_sudoku_puzzle_outline.png",
-                          cv2.IMREAD_UNCHANGED)
+
+img_original = jtk.show_image(args['image'])
+
 img_height, img_width = img_original.shape[:2]
 
 # Mostramos la imagen original
@@ -108,9 +113,12 @@ elif jtk.op_borders == jtk.OP_BORDERS_SOBEL:
 jtk.show_window("Sudoku board PROCESSED", img_borders, force_square=True)
 cv2.waitKey(jtk.WAIT_DELAY*2)
 
-
+# #############################################################################
 # Deteccion de lineas
+# #############################################################################
+# Detectar lineas horizontales y verticales
 lines = cv2.HoughLines(img_borders, 1, np.pi/2, int(img_height*0.2))
+# Dibujar lineas horizontales y verticales
 for line in lines:
     rho, theta = line[0]
     v = np.cos(theta), np.sin(theta)
@@ -200,7 +208,7 @@ for c in cells:
         text = ocr.image_to_string(cell, config=custom_config)
     except Exception as e:
         jtk.tesseract_error(e)
-    draw_number(img_orig_board, c, text[0] if text != '' else '', (0, 0, 255))
+    jtk.draw_number(img_orig_board, c, text[0] if text != '' else '', (0, 0, 255))
     jtk.show_window("Sudoku board ORIGINAL", img_orig_board, force_square=True)
     text = text[0] if text != '' else '0'
     board_data.append(text)

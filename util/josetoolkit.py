@@ -10,7 +10,6 @@ import webbrowser
 from imutils.perspective import four_point_transform
 from imutils import grab_contours
 from matplotlib.pyplot import contour
-from regex import T
 from skimage.segmentation import clear_border
 import tkinter
 from tkinter import messagebox
@@ -56,19 +55,19 @@ WAIT_KEY = False
 
 FIXED_WIDTH = 2560
 
-# DEF_SUDOKU_IMG = ".\img\opencv_sudoku_puzzle_outline.png"
+DEF_SUDOKU_IMG = ".\img\opencv_sudoku_puzzle_outline.png"
 # DEF_SUDOKU_IMG = ".\img\sudoku_01.jpg"
 # DEF_SUDOKU_IMG = ".\img\sudoku_02.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_03.jpg"
+# DEF_SUDOKU_IMG = ".\img\sudoku_03.jpg"  # nok
 # DEF_SUDOKU_IMG = ".\img\sudoku_04.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_05.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_06.jpg" # nok
+# DEF_SUDOKU_IMG = ".\img\sudoku_05.jpg"  # nok
+# DEF_SUDOKU_IMG = ".\img\sudoku_06.jpg"  # nok
 # DEF_SUDOKU_IMG = ".\img\sudoku_07.jpg" # nok
-# DEF_SUDOKU_IMG = ".\img\sudoku_08.jpg" 
-# DEF_SUDOKU_IMG = ".\img\sudoku_09.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_10.jpg" # nok
+# DEF_SUDOKU_IMG = ".\img\sudoku_08.jpg" # n
+# DEF_SUDOKU_IMG = ".\img\sudoku_09.jpg" # n
+# DEF_SUDOKU_IMG = ".\img\sudoku_10.jpg"  # nok
 # DEF_SUDOKU_IMG = ".\img\sudoku_11.jpg"
-DEF_SUDOKU_IMG = ".\img\sudoku_12.jpg"
+# DEF_SUDOKU_IMG = ".\img\sudoku_12.jpg"
 
 
 # #############################################################################
@@ -209,9 +208,13 @@ def umbralizacion_adaptativa(image, type=cv2.THRESH_BINARY, vecinos=11, c_substr
     #   El valor del umbral es la media de los vecions del bloque
     #   (vecinos x vecinos) menos C
     size = (vecinos//2)*2+1
-    umbral = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                                   type, size, c_substract)
-    return clear_border(umbral)
+    # umbral = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+    #                                type, size, c_substract)
+    # return clear_border(umbral)
+    # np.uint8(image)
+    umbral = cv2.adaptiveThreshold(
+        image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, type, size, c_substract)
+    return cv2.bitwise_not(umbral)
 
 
 def umbralizacion(image, thr=50, type=cv2.THRESH_BINARY_INV):
@@ -329,3 +332,46 @@ def process(name, image, thr):
         umbralizacion(image, thr=thr, type=cv2.THRESH_BINARY_INV))
 
     return image
+
+
+def ordenar_puntos(points):
+    """
+    Ordena los puntos en forma de cuadrado
+
+    [p1, p2, 
+
+     p3, p4]"""
+    p = np.array(points)
+    if len(p) != 4:
+        raise BoardError("Se esperaban 4 puntos")
+    # Ordenar las puntos
+    up = sorted(p, key=lambda x: x[1])[:2]
+    down = sorted(p, key=lambda x: x[1])[2:]
+    p1, p2 = sorted(up, key=lambda x: x[0])
+    p3, p4 = sorted(down, key=lambda x: x[0])
+    return [p1[0], p1[1]], [p2[0], p2[1]], [p3[0], p3[1]], [p4[0], p4[1]]
+
+
+def write_coords(images, name, point, colors):
+    for i in range(len(images)):
+        cv2.putText(
+            img=images[i],
+            text="{}:({}, {})".format(name, point[0], point[1]),
+            org=point,
+            fontFace=cv2.FONT_HERSHEY_TRIPLEX,
+            fontScale=2,
+            color=colors[i],
+            thickness=2,
+            lineType=cv2.LINE_AA)
+
+
+def draw_number(image, cell, number=8, color=(0, 0, 0)):
+    (x, y, w, h) = cell
+    wc, hc = 16, 21
+    s = int(h*0.8/hc)
+    wm, hm = -2*s, -1
+    wc, hc = wc*s, hc*s
+    font = cv2.FONT_HERSHEY_COMPLEX
+    position = (x+int((wm+w/2-wc/2)), y+int((hm+h/2+hc/2)))
+    line = s+1
+    cv2.putText(image, str(number), position, font, s, color, line)
