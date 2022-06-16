@@ -5,18 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Sudoku OpenCV",
+            "name": "Python: archivo actual",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/sudoku_solver.py",
+            "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "Pruebas OpenCV",
+            "name": "Python: Sudoku OpenCV",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/pruebas.py",
+            "program": "${workspaceFolder}/sudoku.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },

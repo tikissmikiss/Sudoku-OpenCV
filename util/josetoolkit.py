@@ -1,7 +1,4 @@
 # Importamos las librerías necesarias
-from sudoku import print_board, solve
-import os
-from time import sleep
 from matplotlib import pyplot as plt
 
 import cv2
@@ -9,73 +6,36 @@ import numpy as np
 import webbrowser
 from imutils.perspective import four_point_transform
 from imutils import grab_contours
-from matplotlib.pyplot import contour
-from regex import T
 from skimage.segmentation import clear_border
 import tkinter
 from tkinter import messagebox
-
-try:
-    import pytesseract as ocr
-except ImportError:
-    window = tkinter.Tk()
-    window.wm_withdraw()
-    sel_exit = False
-    res = messagebox.askquestion(
-        'Módulo no instalado', '¿Desea instalar la librería pytesseract? ' +
-        '\n\nAun asi es necesario tener instalado Tesseract, ' +
-        'puede descargarlo aqui: \n\n' +
-        'https://tesseract-ocr.github.io/tessdoc/Installation.html')
-    if res == 'yes':
-        os.system('pip install pytesseract')
-        import pytesseract as ocr
-        webbrowser.open(
-            'https://tesseract-ocr.github.io/tessdoc/Installation.html')
-    else:
-        res = messagebox.askquestion(
-            '¿Continuar?', '¿Desea continuar sin el modulo de OCR?')
-        if res == 'no':
-            sel_exit = True
-    window.destroy()
-    if sel_exit:
-        exit(0)
 
 
 # #############################################################################
 # Constantes
 # #############################################################################
-OP_BORDERS_CANNY = 0                 # Bordes mediante el filtro de Canny
-OP_BORDERS_SOBEL = 1                 # Bordes mediante el filtro de Sobel
-OP_BORDERS_THRESHOLD = 2             # Bordes mediante umbralización básica
-OP_BORDERS_ADAPTATIVE_THRESHOLD = 3  # Bordes mediante umbralización adaptativa
+# OP_BORDERS_CANNY = 0                 # Bordes mediante el filtro de Canny
+# OP_BORDERS_SOBEL = 1                 # Bordes mediante el filtro de Sobel
+# OP_BORDERS_THRESHOLD = 2             # Bordes mediante umbralización básica
+# OP_BORDERS_ADAPTATIVE_THRESHOLD = 3  # Bordes mediante umbralización adaptativa
 
 SOBEL_X = 0
 SOBEL_Y = 1
 
-WAIT_KEY = False
+FIXED_WIDTH = 2560  # Ancho fijo de la imagen a escalar
 
-FIXED_WIDTH = 2560
+# Imagen de entrada
+DEF_SUDOKU_IMG = ".\img\sudoku_01.png"
 
-# DEF_SUDOKU_IMG = ".\img\opencv_sudoku_puzzle_outline.png"
-# DEF_SUDOKU_IMG = ".\img\sudoku_01.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_02.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_03.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_04.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_05.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_06.jpg" # nok
-# DEF_SUDOKU_IMG = ".\img\sudoku_07.jpg" # nok
-# DEF_SUDOKU_IMG = ".\img\sudoku_08.jpg" 
-# DEF_SUDOKU_IMG = ".\img\sudoku_09.jpg"
-# DEF_SUDOKU_IMG = ".\img\sudoku_10.jpg" # nok
-# DEF_SUDOKU_IMG = ".\img\sudoku_11.jpg"
-DEF_SUDOKU_IMG = ".\img\sudoku_12.jpg"
 
+# Ruta de salida
+SUDOKU_OUT = ".\sudoku_out.png"
 
 # #############################################################################
 # Inicialización opciones
 # #############################################################################
-op_borders = OP_BORDERS_CANNY
-WAIT_DELAY = 100
+# op_borders = OP_BORDERS_CANNY
+WAIT_DELAY = 10
 
 # #############################################################################
 # Excepciones
@@ -209,9 +169,9 @@ def umbralizacion_adaptativa(image, type=cv2.THRESH_BINARY, vecinos=11, c_substr
     #   El valor del umbral es la media de los vecions del bloque
     #   (vecinos x vecinos) menos C
     size = (vecinos//2)*2+1
-    umbral = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                                   type, size, c_substract)
-    return clear_border(umbral)
+    umbral = cv2.adaptiveThreshold(
+        image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, type, size, c_substract)
+    return cv2.bitwise_not(umbral)
 
 
 def umbralizacion(image, thr=50, type=cv2.THRESH_BINARY_INV):
@@ -224,27 +184,6 @@ def dilate_image(image):
     kernel = np.ones((3, 3), np.uint8)
     dilated = cv2.dilate(image, kernel, iterations=2)
     return dilated
-
-
-# TODO: BORAR no se usa
-def find_contours(image):
-    # Buscamos contorno en la imagen
-    # contornos = cv2.findContours(image.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # contornos = sorted(contornos, key=cv2.contourArea, reverse=True)
-    # Recorremos todos los contornos encontrados
-    contornos = cv2.findContours(
-        image.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contornos = grab_contours(contornos)
-    # Eliminamos los contornos más pequeños
-    # for c in cont:
-    #     # if cv2.contourArea(c) < 500:
-    #     #     continue
-
-    #     # Obtenemos el bounds del contorno, el rectángulo mayor que engloba al contorno
-    #     (x, y, w, h) = cv2.boundingRect(c)
-    #     # Dibujamos el rectángulo del bounds
-    #     cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-    return contornos
 
 
 def draw_board(image, rectangle, board):
@@ -314,18 +253,72 @@ def show_hist(image):
     return hist, max_value, max_i
 
 
-def process(name, image, thr):
-    # Aplicar filtro gausiano para eliminar ruido
-    image = show_window(
-        name,
-        gaussian_filter(image, 7))
+def ordenar_puntos(points):
+    """
+    Ordena los puntos en forma de cuadrado
 
-    # Umbralización
-    pixels = image.shape[0]*image.shape[1]
-    brightness = int(np.sum(image)/pixels)
-    # thr = brightness - (brightness*0.2)
-    image = show_window(
-        name,
-        umbralizacion(image, thr=thr, type=cv2.THRESH_BINARY_INV))
+    [p1, p2, 
 
-    return image
+     p3, p4]"""
+    p = np.array(points)
+    if len(p) != 4:
+        raise BoardError("Se esperaban 4 puntos")
+    # Ordenar las puntos
+    up = sorted(p, key=lambda x: x[1])[:2]
+    down = sorted(p, key=lambda x: x[1])[2:]
+    p1, p2 = sorted(up, key=lambda x: x[0])
+    p3, p4 = sorted(down, key=lambda x: x[0])
+    return [p1[0], p1[1]], [p2[0], p2[1]], [p3[0], p3[1]], [p4[0], p4[1]]
+
+
+def write_coords(images, name, point, colors):
+    """
+    Escribe un nombre junto a las coordenadas de un punto en todas las imagenes de entrada.
+    @param images: Lista de imagenes
+    @param name: Nombre del punto
+    @param point: Coordenadas del punto a escribir
+    @param colors: Lista de colores
+    """
+    for i in range(len(images)):
+        cv2.putText(
+            img=images[i],
+            text="{}:({}, {})".format(name, point[0], point[1]),
+            org=point,
+            fontFace=cv2.FONT_HERSHEY_TRIPLEX,
+            fontScale=2,
+            color=colors[i],
+            thickness=2,
+            lineType=cv2.LINE_AA)
+
+
+def draw_number(image, cell, number=8, color=(0, 0, 0)):
+    (x, y, w, h) = cell
+    wc, hc = 16, 21
+    s = int(h*0.8/hc)
+    wm, hm = -2*s, -1
+    wc, hc = wc*s, hc*s
+    font = cv2.FONT_HERSHEY_COMPLEX
+    position = (x+int((wm+w/2-wc/2)), y+int((hm+h/2+hc/2)))
+    line = s+1
+    cv2.putText(image, str(number), position, font, s, color, line)
+
+
+def intersect(a, b):
+    """
+    Calcula la intersección de dos rectas
+    @param a: Recta 1 (2 puntos (x, y))
+    @param b: Recta 2 (2 puntos (x, y))
+    @return: Coordenadas de la intersección
+    """
+    x1, y1 = a[0]
+    x2, y2 = a[1]
+    x3, y3 = b[0]
+    x4, y4 = b[1]
+    denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
+    if denom == 0:
+        return None
+    ma = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom
+    mb = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom
+    x = x1 + ma * (x2 - x1)
+    y = y1 + ma * (y2 - y1)
+    return (int(x), int(y))
