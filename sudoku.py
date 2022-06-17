@@ -12,6 +12,7 @@ from util.sudoku_solver import print_board, solve
 # #############################################################################
 # Menú del programa.
 # #############################################################################
+
 ap = AP()
 ap.add_argument('-i', '--image', default=DEF_SUDOKU_IMG, required=False,
                 help='Ruta de la imagen de entrada. Si se omite se usa "'+str(DEF_SUDOKU_IMG)+'".')
@@ -27,6 +28,7 @@ DELAY = 10 if int(args['wait_delay']) in range(
     1, 10) else int(args['wait_delay'])
 IMG_IN = args['image']
 IMG_OUT = args['output']
+
 
 # #############################################################################
 # #############################################################################
@@ -271,14 +273,15 @@ drawContours(mask, contornos, 0, (0), -1)
 jtk.show_window("Mask", mask)
 jtk.show_window("PROCESS", img_inframe, wait=1)
 
-
 # Filtrar por area
+mean = 0
 max_area = img_width * img_height / 81
 min_area = max_area / 2
 celdas = [i for i in range(len(contornos))
             if min_area < cv2.contourArea(contornos[i]) 
             and cv2.contourArea(contornos[i]) < max_area]
-mean = 0
+
+# Contornos celdas
 for i in celdas:
     drawContours(img_inframe, contornos, i, (255, 0, 0), -1)
     drawContours(mask, contornos, i, (0), -1)
@@ -295,6 +298,7 @@ for i in celdas:
             numero.append([x for x in c if cv2.contourArea(contornos[x]) == max([cv2.contourArea(contornos[j]) for j in c])][0])
             mean = np.mean([cv2.contourArea(contornos[j]) for j in numero])
 
+# Contornos numeros
 for h in numero:
     if cv2.contourArea(contornos[h]) > mean*0.5:
         drawContours(img_inframe, contornos,h, (255, 255, 255), -1)
@@ -310,7 +314,7 @@ for h in numero:
             jtk.show_window("PROCESS", img_inframe, wait=1)
             j = hierarchy[j, next]
 
-
+# Rectangulos celdas
 cells = [cv2.boundingRect(contornos[i]) for i in celdas]
 
 # Comprobacion del numero de celdas encontradas
@@ -327,6 +331,7 @@ for c in cells:
     (x, y, w, h) = c
     cv2.rectangle(img_inframe, (x, y), (x + w, y + h), (0, 0, 255), 3)
 jtk.show_window("PROCESS", img_inframe, wait=1)
+
 
 # ###############################################################################
 # Leer el contenido de las celdas
@@ -369,6 +374,7 @@ print_board('Solution', solution)
 # ###############################################################################
 # Imprimir solucion
 # ###############################################################################
+
 # Crear mascara de ceros para superponer  resultado
 mask = np.zeros((img_height, img_width, img_resized.shape[2]), np.uint8)
 mask = np.zeros((img_height, img_width), np.uint8)
@@ -395,14 +401,18 @@ for r in range(9):
             jtk.show_window("Mask", m_over)
             jtk.show_window("Sudoku", img_solution, wait=100)
 
+# Guardan solucion en archivo
 cv2.imwrite(IMG_OUT, img_solution)
-cv2.waitKey(5000)
-cv2.destroyWindow("Mask")
-cv2.destroyWindow("PROCESS")
+
 
 # #################################################
 # FIN
 # #################################################
+
+cv2.waitKey(5000)
+cv2.destroyWindow("Mask")
+cv2.destroyWindow("PROCESS")
+
 cv2.putText(
     img_solution,
     'Pulsar cualquier tecla para salir !!!',

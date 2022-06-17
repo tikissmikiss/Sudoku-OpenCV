@@ -1,15 +1,13 @@
 # Importamos las librerías necesarias
 import os
 import threading
-from matplotlib import pyplot as plt
+import tkinter
+import webbrowser
+from tkinter import messagebox
 
 import cv2
 import numpy as np
-import webbrowser
-from imutils.perspective import four_point_transform
 from skimage.segmentation import clear_border
-import tkinter
-from tkinter import messagebox
 
 try:
     import pytesseract as ts
@@ -40,27 +38,23 @@ except ImportError:
 # #############################################################################
 # Constantes
 # #############################################################################
-# OP_BORDERS_CANNY = 0                 # Bordes mediante el filtro de Canny
-# OP_BORDERS_SOBEL = 1                 # Bordes mediante el filtro de Sobel
-# OP_BORDERS_THRESHOLD = 2             # Bordes mediante umbralización básica
-# OP_BORDERS_ADAPTATIVE_THRESHOLD = 3  # Bordes mediante umbralización adaptativa
 
 SOBEL_X = 0
 SOBEL_Y = 1
 
 FIXED_WIDTH = 2560  # Ancho fijo de la imagen a escalar
 
-# Imagen de entrada
-DEF_SUDOKU_IMG = ".\img\sudoku_01.png"
-
-
-# Ruta de salida
-SUDOKU_OUT = ".\sudoku_out.png"
-
 # #############################################################################
 # Inicialización opciones
 # #############################################################################
-# op_borders = OP_BORDERS_CANNY
+
+# Imagen de entrada por defecto
+DEF_SUDOKU_IMG = ".\img\sudoku_01.png"
+
+# Ruta de salida por defecto
+SUDOKU_OUT = ".\sudoku_out.png"
+
+# Tiempo de espera por defecto
 WAIT_DELAY = 1000
 
 # #############################################################################
@@ -212,48 +206,6 @@ def dilate_image(image):
     return dilated
 
 
-# def draw_board(image, rectangle, board):
-#     """ Dibuja en la imagen el rectangulo que contiene el tablero y el tablero
-#     @param image: Imagen sobre la que dibujar 
-#     @param rectangle: Rectangulo que contiene el tablero
-#     @param board: Tablero a dibujar
-#     \n@return: Devuelve copia de la imagen con el tablero dibujado
-#     """
-#     _img = image.copy()
-#     # Dibujamos el rectángulo del bounds
-#     (x, y, w, h) = rectangle
-#     cv2.rectangle(_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-#     # Dibujamos el tablero
-#     cv2.drawContours(_img, [board], -1, (0, 0, 255), 2)
-#     return _img
-
-
-# def get_tablero(img_borders):
-#     # Buscamos contorno en la imagen
-#     contornos, hierarchy = cv2.findContours(
-#         img_borders, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-#     # Ordenamos para quedarnos con el mayor
-#     contornos = sorted(contornos, key=cv2.contourArea, reverse=True)
-#     contorno_mayor = contornos[0]
-
-#     # Obtenemos el bounds del contorno, el rectángulo mayor que engloba al contorno
-#     bounds = cv2.boundingRect(contorno_mayor)
-
-#     # Obtenemos el poligono del contorno ajustado. Si esta inclinado nos permitirá encuadrarlo
-#     perimetro = cv2.arcLength(contorno_mayor, True)
-#     sudoku_box = cv2.approxPolyDP(contorno_mayor, 0.02 * perimetro, True)
-#     if len(sudoku_box) != 4:
-#         raise BoardError("El tablero encontrado no es un cuadrado")
-
-#     return bounds, sudoku_box
-
-
-# def transform_board(image, poligon_board):
-#     # Transformacion para ajustar a ventana
-#     return four_point_transform(image, poligon_board.reshape(4, 2))
-
-
 def tesseract_error(e):
     print(e)
     print("Error al procesar la celda")
@@ -266,17 +218,6 @@ def tesseract_error(e):
         'https://tesseract-ocr.github.io/tessdoc/Installation.html')
     window.destroy()
     exit(0)
-
-
-# def show_hist(image):
-#     hist = cv2.calcHist([image], [0], None, [256], [0, 256])
-#     max_value = np.max(hist)  # Valor máximo del histograma
-#     max_i = np.argmax(hist)  # Índice del valor máximo
-#     pixels = image.shape[0]*image.shape[1]
-#     # show_window("Histograma", hist, size=hist.shape[1])
-#     plt.plot(hist/pixels)
-#     plt.show()
-#     return hist, max_value, max_i
 
 
 def ordenar_puntos(points):
@@ -350,9 +291,6 @@ def intersect(a, b):
     return (int(x), int(y))
 
 
-# mutex = threading.Condition()
-
-
 def ocr(cell):
     """ TESSERACT
     OCR Engine modes (--oem):
@@ -405,12 +343,6 @@ def ocr_thread(img, cnfg, reads):
         reads.append(ts.image_to_string(img, config=cnfg))
     except Exception as e:
         tesseract_error(e)
-    # # while not mutex.acquire():
-    # #     mutex.wait()
-    # # mutex.acquire() # inicio seccion critica
-    # reads.append(txt)
-    # # mutex.notifyAll()
-    # # mutex.release()  # fin seccion critica
 
 
 def process_cell(cell):
