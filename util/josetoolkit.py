@@ -1,14 +1,40 @@
 # Importamos las librerías necesarias
+import os
+import threading
 from matplotlib import pyplot as plt
 
 import cv2
 import numpy as np
 import webbrowser
 from imutils.perspective import four_point_transform
-from imutils import grab_contours
 from skimage.segmentation import clear_border
 import tkinter
 from tkinter import messagebox
+
+try:
+    import pytesseract as ts
+except ImportError:
+    window = tkinter.Tk()
+    window.wm_withdraw()
+    sel_exit = False
+    res = messagebox.askquestion(
+        'Módulo no instalado', '¿Desea instalar la librería pytesseract? ' +
+        '\n\nAun asi es necesario tener instalado Tesseract, ' +
+        'puede descargarlo aqui: \n\n' +
+        'https://tesseract-ocr.github.io/tessdoc/Installation.html')
+    if res == 'yes':
+        os.system('pip install pytesseract')
+        import pytesseract as ocr
+        webbrowser.open(
+            'https://tesseract-ocr.github.io/tessdoc/Installation.html')
+    else:
+        res = messagebox.askquestion(
+            '¿Continuar?', '¿Desea continuar sin el modulo de OCR?')
+        if res == 'no':
+            sel_exit = True
+    window.destroy()
+    if sel_exit:
+        exit(0)
 
 
 # #############################################################################
@@ -35,7 +61,7 @@ SUDOKU_OUT = ".\sudoku_out.png"
 # Inicialización opciones
 # #############################################################################
 # op_borders = OP_BORDERS_CANNY
-WAIT_DELAY = 10
+WAIT_DELAY = 1000
 
 # #############################################################################
 # Excepciones
@@ -186,46 +212,46 @@ def dilate_image(image):
     return dilated
 
 
-def draw_board(image, rectangle, board):
-    """ Dibuja en la imagen el rectangulo que contiene el tablero y el tablero
-    @param image: Imagen sobre la que dibujar 
-    @param rectangle: Rectangulo que contiene el tablero
-    @param board: Tablero a dibujar
-    \n@return: Devuelve copia de la imagen con el tablero dibujado
-    """
-    _img = image.copy()
-    # Dibujamos el rectángulo del bounds
-    (x, y, w, h) = rectangle
-    cv2.rectangle(_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-    # Dibujamos el tablero
-    cv2.drawContours(_img, [board], -1, (0, 0, 255), 2)
-    return _img
+# def draw_board(image, rectangle, board):
+#     """ Dibuja en la imagen el rectangulo que contiene el tablero y el tablero
+#     @param image: Imagen sobre la que dibujar 
+#     @param rectangle: Rectangulo que contiene el tablero
+#     @param board: Tablero a dibujar
+#     \n@return: Devuelve copia de la imagen con el tablero dibujado
+#     """
+#     _img = image.copy()
+#     # Dibujamos el rectángulo del bounds
+#     (x, y, w, h) = rectangle
+#     cv2.rectangle(_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+#     # Dibujamos el tablero
+#     cv2.drawContours(_img, [board], -1, (0, 0, 255), 2)
+#     return _img
 
 
-def get_tablero(img_borders):
-    # Buscamos contorno en la imagen
-    contornos, hierarchy = cv2.findContours(
-        img_borders, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+# def get_tablero(img_borders):
+#     # Buscamos contorno en la imagen
+#     contornos, hierarchy = cv2.findContours(
+#         img_borders, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Ordenamos para quedarnos con el mayor
-    contornos = sorted(contornos, key=cv2.contourArea, reverse=True)
-    contorno_mayor = contornos[0]
+#     # Ordenamos para quedarnos con el mayor
+#     contornos = sorted(contornos, key=cv2.contourArea, reverse=True)
+#     contorno_mayor = contornos[0]
 
-    # Obtenemos el bounds del contorno, el rectángulo mayor que engloba al contorno
-    bounds = cv2.boundingRect(contorno_mayor)
+#     # Obtenemos el bounds del contorno, el rectángulo mayor que engloba al contorno
+#     bounds = cv2.boundingRect(contorno_mayor)
 
-    # Obtenemos el poligono del contorno ajustado. Si esta inclinado nos permitirá encuadrarlo
-    perimetro = cv2.arcLength(contorno_mayor, True)
-    sudoku_box = cv2.approxPolyDP(contorno_mayor, 0.02 * perimetro, True)
-    if len(sudoku_box) != 4:
-        raise BoardError("El tablero encontrado no es un cuadrado")
+#     # Obtenemos el poligono del contorno ajustado. Si esta inclinado nos permitirá encuadrarlo
+#     perimetro = cv2.arcLength(contorno_mayor, True)
+#     sudoku_box = cv2.approxPolyDP(contorno_mayor, 0.02 * perimetro, True)
+#     if len(sudoku_box) != 4:
+#         raise BoardError("El tablero encontrado no es un cuadrado")
 
-    return bounds, sudoku_box
+#     return bounds, sudoku_box
 
 
-def transform_board(image, poligon_board):
-    # Transformacion para ajustar a ventana
-    return four_point_transform(image, poligon_board.reshape(4, 2))
+# def transform_board(image, poligon_board):
+#     # Transformacion para ajustar a ventana
+#     return four_point_transform(image, poligon_board.reshape(4, 2))
 
 
 def tesseract_error(e):
@@ -242,15 +268,15 @@ def tesseract_error(e):
     exit(0)
 
 
-def show_hist(image):
-    hist = cv2.calcHist([image], [0], None, [256], [0, 256])
-    max_value = np.max(hist)  # Valor máximo del histograma
-    max_i = np.argmax(hist)  # Índice del valor máximo
-    pixels = image.shape[0]*image.shape[1]
-    # show_window("Histograma", hist, size=hist.shape[1])
-    plt.plot(hist/pixels)
-    plt.show()
-    return hist, max_value, max_i
+# def show_hist(image):
+#     hist = cv2.calcHist([image], [0], None, [256], [0, 256])
+#     max_value = np.max(hist)  # Valor máximo del histograma
+#     max_i = np.argmax(hist)  # Índice del valor máximo
+#     pixels = image.shape[0]*image.shape[1]
+#     # show_window("Histograma", hist, size=hist.shape[1])
+#     plt.plot(hist/pixels)
+#     plt.show()
+#     return hist, max_value, max_i
 
 
 def ordenar_puntos(points):
@@ -322,3 +348,96 @@ def intersect(a, b):
     x = x1 + ma * (x2 - x1)
     y = y1 + ma * (y2 - y1)
     return (int(x), int(y))
+
+
+# mutex = threading.Condition()
+
+
+def ocr(cell):
+    """ TESSERACT
+    OCR Engine modes (--oem):
+        0    Legacy engine only.
+        1    Neural nets LSTM engine only.
+        2    Legacy + LSTM engines.
+        3    Default, based on what is available.
+    Tesseract Page segmentation modes (--psm):
+        0    Orientation and script detection (OSD) only.
+        1    Automatic page segmentation with OSD.
+        2    Automatic page segmentation, but no OSD, or OCR.
+        3    Fully automatic page segmentation, but no OSD. (Default)
+        4    Assume a single column of text of variable sizes.
+        5    Assume a single uniform block of vertically aligned text.
+        6    Assume a single uniform block of text.
+        7    Treat the image as a single text line.
+        8    Treat the image as a single word.
+        9    Treat the image as a single word in a circle.
+        10    Treat the image as a single character.
+        11    Sparse text. Find as much text as possible in no particular order.
+        12    Sparse text with OSD.
+        13    Raw line. Treat the image as a single text line,
+                bypassing hacks that are Tesseract-specific.
+    """
+    reads = []
+    cnfgs = [
+        r'--psm 6 -c tessedit_char_whitelist=0123456789',
+        r'--psm 8 -c tessedit_char_whitelist=0123456789',
+        r'--psm 10 -c tessedit_char_whitelist=0123456789',
+    ]
+    imgs = process_cell(cell)
+    try:
+        thrds = []
+        for i in imgs:
+            show_window('Sudoku cell', i, size=200, wait=1)
+            for c in cnfgs:
+                thrds.append(threading.Thread(
+                    target=ocr_thread, args=(i, c, reads)))
+                thrds[-1].start()
+            # Esperamos que acaben todos los hilos
+            for i in range(len(thrds)):
+                thrds[i].join()
+    except Exception as e:
+        tesseract_error(e)
+    return best(reads)
+
+
+def ocr_thread(img, cnfg, reads):
+    try:
+        reads.append(ts.image_to_string(img, config=cnfg))
+    except Exception as e:
+        tesseract_error(e)
+    # # while not mutex.acquire():
+    # #     mutex.wait()
+    # # mutex.acquire() # inicio seccion critica
+    # reads.append(txt)
+    # # mutex.notifyAll()
+    # # mutex.release()  # fin seccion critica
+
+
+def process_cell(cell):
+    pixels = cell.shape[0]*cell.shape[1]
+    brightness = int(np.sum(cell)/pixels)
+    imgs = [cell]
+    if brightness < 3:
+        return []
+    for p in range(90, 211, 15):
+        thr = p
+        c = gaussian_filter(cell, 25)
+        c = umbralizacion(c, thr=thr, type=cv2.THRESH_BINARY)
+        c = gaussian_filter(c, 7)
+        # show_window('Sudoku cell', c, size=200, wait=1)
+        imgs.append(c)
+    return imgs
+
+
+def best(values):
+    matches = ['1\n', '2\n', '3\n', '4\n', '5\n', '6\n', '7\n', '8\n', '9\n']
+    reads = [v[0] for v in values if v in matches]
+    print("OCR: {}".format(reads))
+    if len(reads) != 0:
+        dic = {'1': 0, '2': 0, '3': 0, '4': 0,
+               '5': 0, '6': 0, '7': 0, '8': 0, '9': 0}
+        for r in reads:
+            dic[r] += 1
+        return max(dic, key=dic.get)
+    else:
+        return '0'
